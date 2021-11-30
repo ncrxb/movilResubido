@@ -4,21 +4,23 @@ import 'package:flutter/widgets.dart' show ChangeNotifier;
 import 'package:flutter/cupertino.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:movil/app/helpers/image_to_bytes.dart';
+import 'package:movil/app/ui/models/casas.model.dart';
+import 'package:movil/app/ui/providers/casas.provider.dart';
 import 'package:movil/app/ui/utils/map_style.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:movil/app/ui/providers/casas.state.dart';
 
 class HomeController extends ChangeNotifier {
   final Map<MarkerId, Marker> _markers = {};
   final Map<PolylineId, Polyline> _polylines = {};
-  final Map<PolygonId, Polygon> _polygons = {};
-
+  final Map<PolygonId, Polygon> _polygons = {};         
 
   Set<Marker> get markers => _markers.values.toSet();
   Set<Polyline> get polylines => _polylines.values.toSet();
   Set<Polygon> get polygons => _polygons.values.toSet();
 
   late BitmapDescriptor _carPin;
-  
+  late BitmapDescriptor _CasaPin;
 
   final _markersController = StreamController<String>.broadcast();
   Stream<String> get onMarkerTap => _markersController.stream;
@@ -37,8 +39,8 @@ class HomeController extends ChangeNotifier {
   StreamSubscription? _gpsSubscription, _positionSubscription;
   GoogleMapController? _mapController;
   
-  String _polylineId = '0';
-  String _polygonId = '0';
+  // String _polylineId = '0';
+  // String _polygonId = '0';
 
   HomeController() {
     _init();
@@ -46,10 +48,8 @@ class HomeController extends ChangeNotifier {
 
   Future<void> _init() async {
    _carPin = BitmapDescriptor.fromBytes(await assetToBytes('assets/bolsa-de-dinero.png', width: 95));
-    //  assetToBytes('assets/bolsa-de-dinero.png', width:130 ).then((value) {
-    //     final bitmap = BitmapDescriptor.fromBytes(value);
-    //     _bolsaIcon.complete(bitmap);
-    //   },);
+   _CasaPin = BitmapDescriptor.fromBytes(await assetToBytes('assets/finanzas.png', width: 95));
+    
     _gpsEnabled = await Geolocator.isLocationServiceEnabled();
     _loading = false;
     _gpsSubscription = Geolocator.getServiceStatusStream().listen(
@@ -58,6 +58,7 @@ class HomeController extends ChangeNotifier {
         print("_gpsEnabled $_gpsEnabled");
         if (_gpsEnabled) {
           _initLocationUpdates();
+          
         }
       },
     );
@@ -70,15 +71,23 @@ class HomeController extends ChangeNotifier {
     _positionSubscription = Geolocator.getPositionStream(
       desiredAccuracy: LocationAccuracy.high,
       distanceFilter: 10,
+      
+      
     ).listen(
+      
       (position) async{
+        
          _setMyPositionMarker(position);
+         _Marcadores(position);
+         
+         
         if(initialized){
           notifyListeners();
         }
 
         if (!initialized) {
           _setInitialPosition(position);
+
           initialized = true;
           notifyListeners();
         }
@@ -110,6 +119,9 @@ class HomeController extends ChangeNotifier {
       _initialPosition = position;
     }
   }
+
+
+  //MARCADORES DE MI POSICION 
   void _setMyPositionMarker(Position position){
     double rotation = 0; 
     if(_lastPosition != null){
@@ -123,6 +135,7 @@ class HomeController extends ChangeNotifier {
     final marker = Marker(
       markerId: markerId,
       position: LatLng(position.latitude, position.longitude),
+      infoWindow: InfoWindow(title: 'Mi ubicación actual'),
       icon: _carPin,
       anchor: const Offset(0.5, 0.5),
       rotation: rotation, 
@@ -131,10 +144,42 @@ class HomeController extends ChangeNotifier {
       _lastPosition = position;
   }
 
+  //MARCADORES FIJOS
+  Future <void> _Marcadores( Position position) async {
+    final casaProvider = CasaProvider();
+    List<CasasModel> response = await casaProvider.getCasas();
+    
+    response.forEach((casa) {
+   // final double = casa.latitud!+","+casa.longitud!;
+    final id = _markers.length.toString();
+    final CasaMarkerId = MarkerId(id);  
+    final marker =  Marker(
+      markerId: CasaMarkerId, 
+      infoWindow: InfoWindow(title: casa.nombreNegocio ),
+      position: LatLng(casa.latitud!, casa.longitud!),
+      //position:  LatLng("${casa.latitud.toDouble()},${casa.longitud.toDouble()}"),
+      icon: _CasaPin,
+     
+     
+    );
+
+    _markers[CasaMarkerId] = marker;
+     });
+
+    notifyListeners();
+
+      
+
+  }
+
   void onMapCreated(GoogleMapController controller) {
     controller.setMapStyle(mapStyle);
     _mapController = controller;
   }
+
+
+
+
 
   Future<void> turnOnGPS() => Geolocator.openLocationSettings();
 
@@ -146,76 +191,85 @@ class HomeController extends ChangeNotifier {
   //   _polygonId = DateTime.now().millisecondsSinceEpoch.toString();
   // }
 
-  void onTap(LatLng position) async {
-//MARCADORES 
-    final id = _markers.length.toString();
-    final markerId = MarkerId(id);
+ 
 
-  //  final icon = await _bolsaIcon.future;
 
-    final marker = Marker(
-      markerId: markerId,
-      position: position,
-      draggable: true,
-      // anchor: const Offset(0.5, 1),
-      //icon: icon,
-      onTap: (){
-        _markersController.sink.add(id);
-      },
-      onDragEnd: (newPosition){
-        print("new position $newPosition");
-      }
-    );
 
-    _markers[markerId] = marker;
-    notifyListeners();
+//   void onTap(LatLng position) async {
+// //MARCADORES 
+//     final id = _markers.length.toString();
+//     final markerId = MarkerId(id);
 
-//POLYLINES
+//   //  final icon = await _bolsaIcon.future;
 
-    // final PolylineId polylineId = PolylineId(_polylineId);
-    // late Polyline polyline;
-    // if (_polylines.containsKey(polylineId)) {
-    //  final tmp =  _polylines[polylineId]!;
-    //  polyline = tmp.copyWith(
-    //    pointsParam: [...tmp.points, position ], 
-    //    );
-    // } else {
-    //   final color = Colors.primaries[_polylines.length];
-    //   polyline = Polyline(
-    //     polylineId: polylineId, 
-    //   points: [position],
-    //   width: 5,
-    //   color: color,
-    //   startCap: Cap.roundCap,
-    //   endCap: Cap.roundCap,
-    //   );
-    // }
-    // _polylines[polylineId] = polyline;
+//     final marker = Marker(
+//       markerId: markerId,
+//       position: position,
+//       draggable: true,
+//       // anchor: const Offset(0.5, 1),
+//       //icon: icon,
+//       onTap: (){
+//         _markersController.sink.add(id);
+//       },
+//       onDragEnd: (newPosition){
+//         print("new position $newPosition");
+//       }
+//     );
 
-//POLYGONOS 
+//     _markers[markerId] = marker;
+//     notifyListeners();
 
-  // final polygonId = PolygonId(_polygonId);
-  // late Polygon polygon;
-  // if(_polygons.containsKey(polygonId)){
-  //   final tmp =  _polygons[polygonId]!;
-  //   polygon = tmp.copyWith(
-  //     pointsParam: [...tmp.points, position],
-  //   );
-  // }else{
-  //  final color = Colors.primaries[_polygons.length];
-  //   polygon = Polygon(
-  //     polygonId: polygonId,
-  //     points: [position],
-  //     strokeWidth: 4,
-  //     strokeColor: color,
-  //     fillColor: color.withOpacity(0.4)
-  //     );
-  // }
+// //POLYLINES
 
-  //   _polygons[polygonId] = polygon;
+//     // final PolylineId polylineId = PolylineId(_polylineId);
+//     // late Polyline polyline;
+//     // if (_polylines.containsKey(polylineId)) {
+//     //  final tmp =  _polylines[polylineId]!;
+//     //  polyline = tmp.copyWith(
+//     //    pointsParam: [...tmp.points, position ], 
+//     //    );
+//     // } else {
+//     //   final color = Colors.primaries[_polylines.length];
+//     //   polyline = Polyline(
+//     //     polylineId: polylineId, 
+//     //   points: [position],
+//     //   width: 5,
+//     //   color: color,
+//     //   startCap: Cap.roundCap,
+//     //   endCap: Cap.roundCap,
+//     //   );
+//     // }
+//     // _polylines[polylineId] = polyline;
 
-  //   notifyListeners();
-   }
+// //POLYGONOS 
+
+//   // final polygonId = PolygonId(_polygonId);
+//   // late Polygon polygon;
+//   // if(_polygons.containsKey(polygonId)){
+//   //   final tmp =  _polygons[polygonId]!;
+//   //   polygon = tmp.copyWith(
+//   //     pointsParam: [...tmp.points, position],
+//   //   );
+//   // }else{
+//   //  final color = Colors.primaries[_polygons.length];
+//   //   polygon = Polygon(
+//   //     polygonId: polygonId,
+//   //     points: [position],
+//   //     strokeWidth: 4,
+//   //     strokeColor: color,
+//   //     fillColor: color.withOpacity(0.4)
+//   //     );
+//   // }
+
+//   //   _polygons[polygonId] = polygon;
+
+//   //   notifyListeners();
+//    }
+
+
+   
+
+ 
 
   @override
   void dispose() {

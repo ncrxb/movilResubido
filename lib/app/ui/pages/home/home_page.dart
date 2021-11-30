@@ -19,7 +19,7 @@ class HomePage extends StatelessWidget {
         return controller;
       },
       child: Scaffold(
-      // appBar: AppBar(
+      appBar: AppBar(
       //   actions: [
       //    Builder(builder: (context) =>  IconButton(
       //      onPressed: (){
@@ -38,7 +38,7 @@ class HomePage extends StatelessWidget {
       //     ),
       //     )
       //   ],
-      // ),
+       ),
       body: Selector<HomeController, bool>(
         selector: (_,controller) => controller.loading,
         builder: (context, loading, loadingWidget){

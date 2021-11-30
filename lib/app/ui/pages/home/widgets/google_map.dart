@@ -37,7 +37,7 @@ class MapView extends StatelessWidget {
               myLocationButtonEnabled: true,
               myLocationEnabled: true,
               compassEnabled: false,
-              onTap: controller.onTap,
+              //onTap: controller.onTap,
               );
            },
 
